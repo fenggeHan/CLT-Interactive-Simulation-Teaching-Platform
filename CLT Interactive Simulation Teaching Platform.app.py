@@ -26,9 +26,6 @@ def setup_chinese_font():
     # 解决负号显示问题
     plt.rcParams["axes.unicode_minus"] = False
 
-    # 清除Matplotlib的字体缓存，确保字体配置生效
-    fm.fontManager._rebuild()
-
 # 执行字体配置
 setup_chinese_font()
 
