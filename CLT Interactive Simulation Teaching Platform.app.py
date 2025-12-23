@@ -2,6 +2,14 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm, bernoulli, binom, geom, chi2, t, f, poisson, expon, uniform
+import matplotlib.font_manager as fm
+import os
+
+# 加载本地字体文件
+font_path = os.path.join(os.path.dirname(__file__), "SimHei.ttf")
+font = fm.FontProperties(fname=font_path)
+plt.rcParams["font.family"] = font.get_name()
+plt.rcParams["axes.unicode_minus"] = False
 
 # --- 关键修改 1：解决中文乱码 ---
 # 自动检测系统并设置字体（适配 Windows/Mac）
@@ -123,3 +131,4 @@ with c3:
 st.info(
 
     "💡 专利提示：注意观察！随着 n 的增加（特别是到 5000 时），无论原始分布多么怪异（如 F 分布），均值分布都会变得非常对称且符合红色虚线。")
+
