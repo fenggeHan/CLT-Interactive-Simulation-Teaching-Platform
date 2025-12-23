@@ -6,27 +6,22 @@ import matplotlib.font_manager as fm
 import os
 import platform
 
-# ===================== 核心修复：中文显示（适配本地+云部署） =====================
+# ===================== 核心：云环境中文显示适配（无需上传字体文件） =====================
 def setup_chinese_font():
-    """统一配置中文字体，优先加载本地字体，无则用系统兼容字体"""
-    # 1. 尝试加载本地SimHei字体（需将SimHei.ttf放在项目根目录）
-    font_path = os.path.join(os.path.dirname(__file__), "SimHei.ttf")  # 确保SimHei.ttf存在
-    if os.path.exists(font_path):
-        font_prop = fm.FontProperties(fname=font_path)
-        plt.rcParams["font.family"] = font_prop.get_name()
-    else:
-        # 2. 适配不同系统的默认中文字体
-        system = platform.system()
-        if system == "Windows":
-            plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei"]  # Windows系统下设置
-        elif system == "Darwin":  # macOS
-            plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "PingFang SC"]
-        else:  # Linux/Streamlit Cloud
-            plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "WenQuanYi Micro Hei"]
-    # 解决负号显示问题
+    """适配本地/云服务器的中文字体，优先使用云环境预装的文泉驿微米黑"""
+    plt.rcParams["font.family"] = "sans-serif"
+    # 按系统适配字体
+    sys_type = platform.system()
+    if sys_type == "Linux":  # Streamlit Cloud/Linux服务器
+        plt.rcParams["font.sans-serif"] = ["WenQuanYi Micro Hei", "DejaVu Sans", "SimHei"]
+    elif sys_type == "Windows":  # 本地Windows
+        plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei", "Arial"]
+    elif sys_type == "Darwin":  # 本地Mac
+        plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "PingFang SC", "Helvetica"]
+    # 解决负号显示异常
     plt.rcParams["axes.unicode_minus"] = False
 
-# 执行字体配置
+# 执行字体配置（必须放在代码开头）
 setup_chinese_font()
 
 # ===================== 页面基础配置 =====================
@@ -39,10 +34,10 @@ st.set_page_config(
 st.title("📊 中心极限定理 (CLT) 交互式仿真平台")
 st.markdown("""
 该系统展示了**独立同分布随机变量序列**的均值，在样本容量较大时，其分布趋于**正态分布**的过程。
-支持多种母体分布类型，可动态调节参数观察收敛效果。
+支持10种母体分布类型，可动态调节参数直观观察收敛效果。
 """)
 
-# ===================== 侧边栏参数配置（修复未定义参数问题） =====================
+# ===================== 侧边栏参数配置 =====================
 st.sidebar.header("🔧 配置模拟参数")
 
 # 分布选择列表
@@ -60,16 +55,18 @@ dist_list = [
 ]
 dist_type = st.sidebar.selectbox("选择母体分布类型", dist_list)
 
-# 初始化所有可能的分布参数（避免未定义报错）
+# 初始化所有分布参数（避免未定义报错）
 p_param = 0.5
 n_binom = 10
 p_binom = 0.5
+p_geom = 0.5
 df_chi = 5
 df_t = 10
 df_n = 10
 df_d = 20
+mu_pois = 3
 
-# 动态参数调节（每个分支都定义参数，避免变量未定义）
+# 动态参数调节（每个分布独立参数）
 st.sidebar.subheader("母体分布自身参数")
 if dist_type == "0-1 分布 (Bernoulli)":
     p_param = st.sidebar.slider("成功概率 p", 0.1, 0.9, 0.5, step=0.05)
@@ -77,7 +74,7 @@ elif dist_type == "二项分布 (Binomial)":
     n_binom = st.sidebar.slider("试验次数 n_trial", 1, 50, 10, step=1)
     p_binom = st.sidebar.slider("成功概率 p", 0.1, 0.9, 0.5, step=0.05)
 elif dist_type == "几何分布 (Geometric)":
-    p_geom = st.sidebar.slider("成功概率 p", 0.1, 0.9, 0.5, step=0.05)  # 补充几何分布参数
+    p_geom = st.sidebar.slider("成功概率 p", 0.1, 0.9, 0.5, step=0.05)
 elif dist_type == "卡方分布 (Chi-Square)":
     df_chi = st.sidebar.slider("自由度 df", 1, 20, 5, step=1)
 elif dist_type == "t 分布":
@@ -86,9 +83,9 @@ elif dist_type == "F 分布":
     df_n = st.sidebar.slider("分子自由度 dfn", 1, 50, 10, step=1)
     df_d = st.sidebar.slider("分母自由度 dfd", 1, 50, 20, step=1)
 elif dist_type == "泊松分布 (Poisson)":
-    mu_pois = st.sidebar.slider("均值 μ", 1, 20, 3, step=1)  # 补充泊松分布参数
+    mu_pois = st.sidebar.slider("均值 μ", 1, 20, 3, step=1)
 
-# 核心抽样参数（增加步长，提升交互体验）
+# 核心抽样参数
 st.sidebar.subheader("CLT 抽样参数")
 n = st.sidebar.slider(
     "样本容量 (n)：每次抽取的样本数",
@@ -99,20 +96,20 @@ N = st.sidebar.slider(
     min_value=100, max_value=10000, value=2000, step=100
 )
 
-# ===================== 核心计算函数（修复参数缺失+增加鲁棒性） =====================
+# ===================== 核心计算函数 =====================
 def generate_means(dist_type, n, N):
-    """生成样本均值数组，增加参数校验，避免报错"""
+    """生成样本均值数组，增加异常捕获"""
     try:
         if dist_type == "0-1 分布 (Bernoulli)":
             data = bernoulli.rvs(p_param, size=(N, n))
         elif dist_type == "二项分布 (Binomial)":
             data = binom.rvs(n_binom, p_binom, size=(N, n))
         elif dist_type == "几何分布 (Geometric)":
-            data = geom.rvs(p_geom, size=(N, n))  # 使用定义的几何分布参数
+            data = geom.rvs(p_geom, size=(N, n))
         elif dist_type == "均匀分布 (Uniform)":
-            data = uniform.rvs(loc=0, scale=1, size=(N, n))  # 指定均匀分布范围
+            data = uniform.rvs(loc=0, scale=1, size=(N, n))
         elif dist_type == "指数分布 (Exponential)":
-            data = expon.rvs(scale=1, size=(N, n))  # 指定指数分布尺度
+            data = expon.rvs(scale=1, size=(N, n))
         elif dist_type == "正态分布 (Normal)":
             data = norm.rvs(loc=0, scale=1, size=(N, n))
         elif dist_type == "卡方分布 (Chi-Square)":
@@ -122,14 +119,11 @@ def generate_means(dist_type, n, N):
         elif dist_type == "F 分布":
             data = f.rvs(df_n, df_d, size=(N, n))
         elif dist_type == "泊松分布 (Poisson)":
-            data = poisson.rvs(mu_pois, size=(N, n))  # 使用定义的泊松分布参数
+            data = poisson.rvs(mu_pois, size=(N, n))
         else:
-            data = norm.rvs(loc=0, scale=1, size=(N, n))  # 兜底默认分布
+            data = norm.rvs(loc=0, scale=1, size=(N, n))
         
-        # 计算每行（每次抽样）的均值
-        sample_means = np.mean(data, axis=1)
-        return sample_means
-    
+        return np.mean(data, axis=1)
     except Exception as e:
         st.error(f"数据生成出错：{str(e)}")
         return np.array([])
@@ -137,14 +131,16 @@ def generate_means(dist_type, n, N):
 # 生成样本均值
 sample_means = generate_means(dist_type, n, N)
 
-# ===================== 可视化模块（优化样式+中文显示） =====================
+# ===================== 可视化模块 =====================
 if len(sample_means) > 0:
+    # 创建画布
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    # 绘制直方图（优化颜色和透明度）
+    # 绘制直方图（动态调整bins数量）
+    bin_num = min(50, len(sample_means)//50)  # 避免数据稀疏时bins过多
     ax.hist(
         sample_means, 
-        bins=min(50, len(sample_means)//50),  # 动态调整bins数量
+        bins=bin_num, 
         density=True, 
         alpha=0.7, 
         color='#2E86AB', 
@@ -173,7 +169,7 @@ if len(sample_means) > 0:
 
     # ===================== 统计指标展示 =====================
     st.subheader("📊 模拟结果统计")
-    c1, c2, c3, c4 = st.columns(4)  # 增加一列显示正态性判断
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric("样本均值期望 (Mean)", f"{mu_fit:.4f}")
     with c2:
@@ -182,23 +178,23 @@ if len(sample_means) > 0:
         sk = skew(sample_means)
         st.metric("分布偏度 (Skewness)", f"{sk:.4f}")
     with c4:
-        # 简单判断正态性（偏度绝对值<0.5视为接近正态）
+        # 正态性判断（偏度绝对值<0.5视为接近正态）
         normality = "✅ 接近正态" if abs(sk) < 0.5 else "❌ 偏离正态"
         st.metric("正态性判断", normality)
 
-    # 提示信息优化
+    # 提示信息
     st.info("""
-    💡 核心规律：随着样本容量 n 的增加（尤其是≥30时），无论原始母体分布类型如何，
-    样本均值的分布都会逐渐趋近于正态分布（红色虚线）；当 n≥1000 时，收敛效果会非常显著。
+    💡 核心规律：随着样本容量 n 增加（≥30时），无论原始母体分布如何，
+    样本均值的分布都会逐渐趋近于正态分布；n≥1000 时收敛效果极其显著。
     """)
 else:
-    st.warning("⚠️ 数据生成失败，请检查参数设置或刷新页面重试")
+    st.warning("⚠️ 数据生成失败，请检查参数或刷新页面重试")
 
 # ===================== 底部说明 =====================
 st.markdown("---")
 st.markdown("""
 ### 📝 使用说明
-1. 左侧可选择不同的母体分布类型，并调节对应参数；
+1. 左侧选择母体分布类型，调节对应参数；
 2. 调整样本容量 n 和模拟次数 N，观察均值分布的收敛效果；
-3. 偏度越接近0，说明分布越对称（越接近正态分布）。
+3. 偏度越接近0，分布越对称（越接近正态分布）。
 """)
