@@ -10,7 +10,7 @@ import platform
 def setup_chinese_font():
     """统一配置中文字体，优先加载本地字体，无则用系统兼容字体"""
     # 1. 尝试加载本地SimHei字体（需将SimHei.ttf放在项目根目录）
-    font_path = os.path.join(os.path.dirname(__file__), "SimHei.ttf")
+    font_path = os.path.join(os.path.dirname(__file__), "SimHei.ttf")  # 确保SimHei.ttf存在
     if os.path.exists(font_path):
         font_prop = fm.FontProperties(fname=font_path)
         plt.rcParams["font.family"] = font_prop.get_name()
@@ -18,7 +18,7 @@ def setup_chinese_font():
         # 2. 适配不同系统的默认中文字体
         system = platform.system()
         if system == "Windows":
-            plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei"]
+            plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei"]  # Windows系统下设置
         elif system == "Darwin":  # macOS
             plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "PingFang SC"]
         else:  # Linux/Streamlit Cloud
