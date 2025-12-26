@@ -7,23 +7,27 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm, bernoulli, binom, geom, chi2, t, f, poisson, expon, uniform, skew
 import os
 import matplotlib.font_manager as fm
+import requests
 
 # ===================== 核心修复：中文显示（适配本地+云部署） =====================
 def setup_chinese_font():
     """统一配置中文字体，优先加载本地字体，无则使用系统字体"""
     
-    # 设置字体文件路径（假设字体文件存放在项目的 fonts 文件夹中）
-    font_path = os.path.join(os.path.dirname(__file__), "fonts", "simhei.ttf")  # 这里替换为您的路径
-    
-    # 如果字体文件存在，则加载
-    if os.path.exists(font_path):
-        font_prop = fm.FontProperties(fname=font_path)
-        plt.rcParams["font.family"] = font_prop.get_name()  # 使用指定的字体
-    else:
-        # 如果字体文件不存在，使用系统默认字体（Windows系统下常见的字体）
-        plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei"]  # 如果没有指定字体，则使用 Microsoft YaHei
-        # 解决负号显示问题
-        plt.rcParams["axes.unicode_minus"] = False
+    # 下载并加载字体文件（通过 GitHub URL）
+    font_url = "https://github.com/fenggeHan/CLT-Interactive-Simulation-Teaching-Platform/raw/main/simhei.ttf"
+    font_path = os.path.join(os.path.dirname(__file__), "fonts", "simhei.ttf")
+
+    # 如果本地字体文件不存在，则从 GitHub 下载
+    if not os.path.exists(font_path):
+        os.makedirs(os.path.dirname(font_path), exist_ok=True)
+        with open(font_path, 'wb') as f:
+            response = requests.get(font_url)
+            f.write(response.content)
+
+    # 加载字体
+    font_prop = fm.FontProperties(fname=font_path)
+    plt.rcParams["font.family"] = font_prop.get_name()  # 使用下载的字体
+    plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
 
 # 执行字体配置
 setup_chinese_font()
