@@ -1,25 +1,45 @@
-import matplotlib
-matplotlib.use('agg')  # Set Agg backend for matplotlib (useful for Streamlit and headless environments)
-
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm, bernoulli, binom, geom, chi2, t, f, poisson, expon, uniform, skew
-import matplotlib.font_manager as fm
 import os
+import requests
 import platform
+import matplotlib.font_manager as fm
 
 # ===================== 核心修复：中文显示（适配本地+云部署） =====================
 def setup_chinese_font():
-    """统一配置中文字体，优先加载本地字体，无则用系统兼容字体"""
-    # 1. 适配不同系统的默认中文字体
-    system = platform.system()
-    if system == "Windows":
-        plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei"]  # 使用Microsoft YaHei
-    elif system == "Darwin":  # macOS
-        plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "PingFang SC"]
-    else:  # Linux/Streamlit Cloud
-        plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "WenQuanYi Micro Hei"]
+    """下载并设置中文字体，优先加载本地字体，无则从GitHub加载"""
+    
+    # 字体URL（GitHub上的字体文件）
+    font_url = "https://github.com/fenggeHan/CLT-Interactive-Simulation-Teaching-Platform/raw/main/simhei.ttf"
+    font_path = os.path.join(os.path.dirname(__file__), "simhei.ttf")  # 项目中的字体路径
+    
+    # 下载字体文件（如果字体文件不存在）
+    if not os.path.exists(font_path):
+        try:
+            response = requests.get(font_url)
+            with open(font_path, 'wb') as f:
+                f.write(response.content)
+            print("字体文件下载成功！")
+        except Exception as e:
+            print(f"下载字体失败: {e}")
+            font_path = None  # 如果下载失败，则字体路径为空
+    
+    # 设置字体
+    if font_path and os.path.exists(font_path):
+        font_prop = fm.FontProperties(fname=font_path)
+        plt.rcParams["font.family"] = font_prop.get_name()  # 使用下载的字体
+    else:
+        # 如果无法下载字体，使用默认字体（可以设置为系统默认的）
+        system = platform.system()
+        if system == "Windows":
+            plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei"]
+        elif system == "Darwin":  # macOS
+            plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "PingFang SC"]
+        else:  # Linux/Streamlit Cloud
+            plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "WenQuanYi Micro Hei"]
+    
     # 解决负号显示问题
     plt.rcParams["axes.unicode_minus"] = False
 
