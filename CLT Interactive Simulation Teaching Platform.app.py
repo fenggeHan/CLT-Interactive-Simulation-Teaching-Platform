@@ -13,7 +13,7 @@ import requests
 def setup_chinese_font():
     """统一配置中文字体，优先加载本地字体，无则使用系统字体"""
     font_url = "https://github.com/fenggeHan/CLT-Interactive-Simulation-Teaching-Platform/raw/main/simhei.ttf"
-    # 修复：兼容Streamlit Cloud的路径问题（避免__file__在云环境报错）
+    # 兼容Streamlit Cloud的路径问题（避免__file__在云环境报错）
     if 'STREAMLIT_SERVER_ROOT_PATH' in os.environ:
         current_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else '.'
     else:
@@ -201,109 +201,7 @@ def generate_means(dist_type, n, N):
 # 生成手动调节的样本均值
 sample_means = generate_means(dist_type, n, N)
 
-# ===================== 修复：动画演示模块 =====================
-st.subheader("🎬 动画演示")
-# 修复1：增加动画状态标记，避免重复触发
-if 'anim_running' not in st.session_state:
-    st.session_state.anim_running = False
-
-# 修复2：拆分按钮逻辑，防止重复点击
-col1, col2 = st.columns([1, 9])
-with col1:
-    animate_btn = st.button("开始动画演示", type="primary", disabled=st.session_state.anim_running)
-    stop_btn = st.button("停止动画演示")
-
-# 停止按钮逻辑
-if stop_btn:
-    st.session_state.anim_running = False
-    st.rerun()  # 强制刷新页面，终止动画循环
-
-# 创建占位符（提前初始化，避免重复创建）
-chart_placeholder = st.empty()
-stats_placeholder = st.empty()
-
-# 动画核心逻辑
-if animate_btn:
-    st.session_state.anim_running = True
-    # 修复3：降低动画步长，减少资源占用（步长10，更快更流畅）
-    for anim_n in range(1, 501, 10):
-        # 检查是否停止
-        if not st.session_state.anim_running:
-            break
-        
-        anim_sample_means = generate_means(dist_type, anim_n, N)
-        if len(anim_sample_means) == 0:
-            with chart_placeholder:
-                st.warning(f"n={anim_n}时数据生成失败，跳过该步")
-            continue
-
-        # 修复4：简化字体配置，使用全局已配置的字体，避免重复加载
-        fig, ax = plt.subplots(figsize=(12, 6))
-        # 绘制直方图
-        ax.hist(
-            anim_sample_means, 
-            bins=min(50, len(anim_sample_means)//50),
-            density=True, 
-            alpha=0.7, 
-            color='#2E86AB', 
-            edgecolor='white',
-            label='样本均值经验分布'
-        )
-        # 拟合正态曲线
-        mu_fit, std_fit = norm.fit(anim_sample_means)
-        x = np.linspace(min(anim_sample_means), max(anim_sample_means), 200)
-        p = norm.pdf(x, mu_fit, std_fit)
-        ax.plot(x, p, 'r--', linewidth=2.5, label='拟合正态曲线')
-        
-        # 修复5：使用全局字体配置，无需重复指定路径
-        ax.set_title(
-            f"{dist_type} 样本容量 n={anim_n} 时的均值收敛演示",
-            fontsize=16, fontweight='bold'
-        )
-        ax.set_xlabel("样本均值数值", fontsize=12)
-        ax.set_ylabel("概率密度", fontsize=12)
-        ax.legend(fontsize=11)
-        ax.grid(alpha=0.3)
-        
-        # 修复6：先渲染图表，再关闭，避免资源泄漏
-        with chart_placeholder:
-            st.pyplot(fig)
-        plt.close(fig)  # 立即释放图表资源
-
-        # 计算统计指标
-        sk = skew(anim_sample_means)
-        kurt = kurtosis(anim_sample_means)
-        abs_sk = abs(sk)
-        skewness_color = "#2ecc71" if abs_sk < 0.5 else "#f1c40f" if 0.5 <= abs_sk <= 1 else "#e74c3c"
-        
-        # 更新统计指标
-        with stats_placeholder:
-            st.subheader("📊 实时统计指标（动画演示中）")
-            c1, c2, c3, c4, c5 = st.columns(5)
-            with c1:
-                st.metric("样本均值期望 (Mean)", f"{mu_fit:.4f}")
-            with c2:
-                st.metric("样本均值标准差 (Std)", f"{std_fit:.4f}")
-            with c3:
-                st.markdown(f"""
-                <div style="background-color: var(--st-card-bg-color); padding: 1rem; border-radius: 0.5rem; height: 100%;">
-                    <div style="font-size: 14px; color: var(--st-text-secondary-color); margin-bottom: 0.25rem;">分布偏度 (Skewness)</div>
-                    <div style="font-size: 20px; font-weight: 600; color: {skewness_color};">{sk:.4f}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            with c4:
-                st.metric("分布峰度 (Kurtosis)", f"{kurt:.4f}")
-            with c5:
-                normality = "✅ 接近正态" if abs_sk < 0.5 else "❌ 偏离正态"
-                st.metric("正态性判断", normality)
-        
-        # 修复7：缩短延时，使用streamlit的空操作替代time.sleep，避免阻塞
-        time.sleep(0.05)  # 缩短为0.05秒，更流畅
-    
-    # 动画结束后重置状态
-    st.session_state.anim_running = False
-
-# ===================== 手动调节的可视化模块 =====================
+# ===================== 手动调节的可视化模块（前置） =====================
 st.subheader("📈 手动调节结果可视化")
 if len(sample_means) > 0:
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -367,6 +265,108 @@ if len(sample_means) > 0:
     """)
 else:
     st.warning("⚠️ 数据生成失败，请检查参数设置或刷新页面重试")
+
+# ===================== 动画演示模块（后置，核心调整点） =====================
+st.subheader("🎬 动画演示")
+# 初始化动画状态标记（提前初始化，避免报错）
+if 'anim_running' not in st.session_state:
+    st.session_state.anim_running = False
+
+# 拆分按钮逻辑，防止重复点击
+col1, col2 = st.columns([1, 9])
+with col1:
+    animate_btn = st.button("开始动画演示", type="primary", disabled=st.session_state.anim_running)
+    stop_btn = st.button("停止动画演示")
+
+# 停止按钮逻辑
+if stop_btn:
+    st.session_state.anim_running = False
+    st.rerun()  # 强制刷新页面，终止动画循环
+
+# 创建占位符（在动画模块内初始化，对应新位置）
+chart_placeholder = st.empty()
+stats_placeholder = st.empty()
+
+# 动画核心逻辑
+if animate_btn:
+    st.session_state.anim_running = True
+    # 降低动画步长，减少资源占用（步长10，更快更流畅）
+    for anim_n in range(1, 501, 10):
+        # 检查是否停止
+        if not st.session_state.anim_running:
+            break
+        
+        anim_sample_means = generate_means(dist_type, anim_n, N)
+        if len(anim_sample_means) == 0:
+            with chart_placeholder:
+                st.warning(f"n={anim_n}时数据生成失败，跳过该步")
+            continue
+
+        # 简化字体配置，使用全局已配置的字体
+        fig, ax = plt.subplots(figsize=(12, 6))
+        # 绘制直方图
+        ax.hist(
+            anim_sample_means, 
+            bins=min(50, len(anim_sample_means)//50),
+            density=True, 
+            alpha=0.7, 
+            color='#2E86AB', 
+            edgecolor='white',
+            label='样本均值经验分布'
+        )
+        # 拟合正态曲线
+        mu_fit, std_fit = norm.fit(anim_sample_means)
+        x = np.linspace(min(anim_sample_means), max(anim_sample_means), 200)
+        p = norm.pdf(x, mu_fit, std_fit)
+        ax.plot(x, p, 'r--', linewidth=2.5, label='拟合正态曲线')
+        
+        # 使用全局字体配置，无需重复指定路径
+        ax.set_title(
+            f"{dist_type} 样本容量 n={anim_n} 时的均值收敛演示",
+            fontsize=16, fontweight='bold'
+        )
+        ax.set_xlabel("样本均值数值", fontsize=12)
+        ax.set_ylabel("概率密度", fontsize=12)
+        ax.legend(fontsize=11)
+        ax.grid(alpha=0.3)
+        
+        # 先渲染图表，再关闭，避免资源泄漏
+        with chart_placeholder:
+            st.pyplot(fig)
+        plt.close(fig)  # 立即释放图表资源
+
+        # 计算统计指标
+        sk = skew(anim_sample_means)
+        kurt = kurtosis(anim_sample_means)
+        abs_sk = abs(sk)
+        skewness_color = "#2ecc71" if abs_sk < 0.5 else "#f1c40f" if 0.5 <= abs_sk <= 1 else "#e74c3c"
+        
+        # 更新统计指标
+        with stats_placeholder:
+            st.subheader("📊 实时统计指标（动画演示中）")
+            c1, c2, c3, c4, c5 = st.columns(5)
+            with c1:
+                st.metric("样本均值期望 (Mean)", f"{mu_fit:.4f}")
+            with c2:
+                st.metric("样本均值标准差 (Std)", f"{std_fit:.4f}")
+            with c3:
+                st.markdown(f"""
+                <div style="background-color: var(--st-card-bg-color); padding: 1rem; border-radius: 0.5rem; height: 100%;">
+                    <div style="font-size: 14px; color: var(--st-text-secondary-color); margin-bottom: 0.25rem;">分布偏度 (Skewness)</div>
+                    <div style="font-size: 20px; font-weight: 600; color: {skewness_color};">{sk:.4f}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with c4:
+                st.metric("分布峰度 (Kurtosis)", f"{kurt:.4f}")
+            with c5:
+                normality = "✅ 接近正态" if abs_sk < 0.5 else "❌ 偏离正态"
+                st.metric("正态性判断", normality)
+        
+        # 缩短延时，更流畅
+        time.sleep(0.05)
+    
+    # 动画结束后重置状态
+    st.session_state.anim_running = False
 
 # ===================== 底部说明 =====================
 st.markdown("---")
