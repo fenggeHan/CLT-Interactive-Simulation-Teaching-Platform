@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use('agg')  # Set Agg backend for matplotlib (useful for Streamlit and headless environments)
+
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
