@@ -4,6 +4,7 @@ matplotlib.use('agg')  # 设置为 agg 后端，用于无头环境（如 Streaml
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+# 补充导入伽玛分布
 from scipy.stats import norm, bernoulli, binom, geom, chi2, t, f, poisson, expon, uniform, skew, gamma
 import os
 import matplotlib.font_manager as fm
@@ -12,11 +13,14 @@ import requests
 # ===================== 优化：修复路径问题 + 强化中文字体配置 =====================
 def setup_chinese_font():
     """统一配置中文字体，优先加载本地字体，无则使用系统字体，兼容本地+Streamlit Cloud"""
+    # 下载并加载字体文件（通过 GitHub URL）
     font_url = "https://github.com/fenggeHan/CLT-Interactive-Simulation-Teaching-Platform/raw/main/simhei.ttf"
+    # 安全兼容所有环境的路径：当前脚本所在目录 + fonts 文件夹
     current_dir = os.path.dirname(os.path.abspath(__file__))
     font_dir = os.path.join(current_dir, "fonts")
     font_path = os.path.join(font_dir, "simhei.ttf")
 
+    # 如果本地字体文件不存在，则从 GitHub 下载
     if not os.path.exists(font_path):
         os.makedirs(font_dir, exist_ok=True)
         try:
@@ -30,6 +34,7 @@ def setup_chinese_font():
             plt.rcParams["axes.unicode_minus"] = False
             return
 
+    # 加载字体
     try:
         fm.fontManager.addfont(font_path)
         font_prop = fm.FontProperties(fname=font_path)
@@ -61,6 +66,7 @@ st.markdown("""
 # ===================== 侧边栏参数配置 =====================
 st.sidebar.header("🔧 配置模拟参数")
 
+# 需求1：添加伽玛分布，放在泊松分布后面
 dist_list = [
     "0-1 分布 (Bernoulli)",
     "二项分布 (Binomial)",
@@ -72,27 +78,29 @@ dist_list = [
     "t 分布",
     "F 分布",
     "泊松分布 (Poisson)",
-    "伽玛分布 (Gamma)"
+    "伽玛分布 (Gamma)"  # 新增：伽玛分布
 ]
 dist_type = st.sidebar.selectbox("选择母体分布类型", dist_list)
 
-# 初始化所有分布参数
+# 初始化所有可能的分布参数（包含新增参数，避免未定义报错）
 p_param = 0.5
 n_binom = 10
 p_binom = 0.5
 p_geom = 0.5
 mu_pois = 3
-norm_loc = 0    
-norm_scale = 1  
-expon_scale = 1 
-gamma_a = 2     
-gamma_scale = 1 
+# 需求2：初始化正态分布、指数分布可调节参数
+norm_loc = 0    # 正态分布均值
+norm_scale = 1  # 正态分布标准差
+expon_scale = 1 # 指数分布尺度参数（对应均值=scale）
+# 初始化伽玛分布参数
+gamma_a = 2     # 伽玛分布形状参数
+gamma_scale = 1 # 伽玛分布尺度参数
 df_chi = 5
 df_t = 10
 df_n = 10
 df_d = 20
 
-# 母体分布自身参数
+# 动态参数调节（每个分支都定义参数，避免变量未定义）
 st.sidebar.subheader("母体分布自身参数")
 if dist_type == "0-1 分布 (Bernoulli)":
     p_param = st.sidebar.slider("成功概率 p", 0.1, 0.9, 0.5, step=0.05)
@@ -101,9 +109,14 @@ elif dist_type == "二项分布 (Binomial)":
     p_binom = st.sidebar.slider("成功概率 p", 0.1, 0.9, 0.5, step=0.05)
 elif dist_type == "几何分布 (Geometric)":
     p_geom = st.sidebar.slider("成功概率 p", 0.1, 0.9, 0.5, step=0.05)
+elif dist_type == "均匀分布 (Uniform)":
+    # 均匀分布可保留默认，也可扩展，此处保持原有逻辑
+    pass
 elif dist_type == "指数分布 (Exponential)":
+    # 需求2：添加指数分布可调节参数（尺度参数，均值=scale）
     expon_scale = st.sidebar.slider("尺度参数 scale（均值=scale）", 0.1, 10.0, 1.0, step=0.1)
 elif dist_type == "正态分布 (Normal)":
+    # 需求2：添加正态分布可调节参数（均值loc、标准差scale）
     norm_loc = st.sidebar.slider("均值 μ (loc)", -10.0, 10.0, 0.0, step=0.5)
     norm_scale = st.sidebar.slider("标准差 σ (scale)", 0.1, 10.0, 1.0, step=0.1)
 elif dist_type == "卡方分布 (Chi-Square)":
@@ -116,52 +129,20 @@ elif dist_type == "F 分布":
 elif dist_type == "泊松分布 (Poisson)":
     mu_pois = st.sidebar.slider("均值 μ", 1, 20, 3, step=1)
 elif dist_type == "伽玛分布 (Gamma)":
+    # 新增：伽玛分布参数调节
     gamma_a = st.sidebar.slider("形状参数 a", 0.5, 20.0, 2.0, step=0.5)
     gamma_scale = st.sidebar.slider("尺度参数 scale", 0.1, 10.0, 1.0, step=0.1)
 
-# ===================== 核心修改：滑动条直接标注临界值（30、100、500） =====================
+# 需求3：样本容量滑动条标注教学常用范围及临界值（30、100、500）
 st.sidebar.subheader("CLT 抽样参数")
-# 用容器包裹滑动条 + 临界值标注
-with st.container():
-    # 样本容量滑动条（去掉文字说明，改为轨道标注）
-    n = st.slider(
-        "样本容量 (n)：每次抽取的样本数",
-        min_value=1,
-        max_value=5000,
-        value=30,
-        step=10,
-        key="sample_size_slider"
-    )
-    # 通过CSS在滑动条上方对应位置添加红色临界值标注
-    st.markdown("""
-    <style>
-    /* 标注容器：相对定位，对齐滑动条 */
-    .slider-markers {
-        position: relative;
-        width: 100%;
-        margin-top: -22px; /* 调整标注与滑动条的垂直距离 */
-        height: 20px;
-    }
-    /* 标注样式：红色、加粗 */
-    .slider-marker {
-        position: absolute;
-        font-size: 12px;
-        color: #ff4b4b;
-        font-weight: 700;
-    }
-    /* 计算每个临界值在滑动条上的相对位置：(目标值-最小值)/(最大值-最小值)*100% */
-    .marker-30 { left: calc((30 - 1)/(5000 - 1) * 100%); }
-    .marker-100 { left: calc((100 - 1)/(5000 - 1) * 100%); }
-    .marker-500 { left: calc((500 - 1)/(5000 - 1) * 100%); }
-    </style>
-    <div class="slider-markers">
-        <div class="slider-marker marker-30">30</div>
-        <div class="slider-marker marker-100">100</div>
-        <div class="slider-marker marker-500">500</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# 模拟次数滑动条
+n = st.sidebar.slider(
+    "样本容量 (n)：每次抽取的样本数【教学常用：30(大样本临界值)、100、500】",
+    min_value=1,
+    max_value=5000,
+    value=30,
+    step=10,
+    help="教学关键临界值：n=30（大样本最低要求）、n=100（收敛效果明显）、n=500（收敛效果极佳）"
+)
 N = st.sidebar.slider(
     "模拟次数 (N)：重复抽样的总次数",
     min_value=100,
@@ -183,8 +164,10 @@ def generate_means(dist_type, n, N):
         elif dist_type == "均匀分布 (Uniform)":
             data = uniform.rvs(loc=0, scale=1, size=(N, n))
         elif dist_type == "指数分布 (Exponential)":
+            # 使用可调节的指数分布参数
             data = expon.rvs(scale=expon_scale, size=(N, n))
         elif dist_type == "正态分布 (Normal)":
+            # 使用可调节的正态分布参数
             data = norm.rvs(loc=norm_loc, scale=norm_scale, size=(N, n))
         elif dist_type == "卡方分布 (Chi-Square)":
             data = chi2.rvs(df_chi, size=(N, n))
@@ -195,10 +178,12 @@ def generate_means(dist_type, n, N):
         elif dist_type == "泊松分布 (Poisson)":
             data = poisson.rvs(mu_pois, size=(N, n))
         elif dist_type == "伽玛分布 (Gamma)":
+            # 新增：伽玛分布数据生成
             data = gamma.rvs(gamma_a, scale=gamma_scale, size=(N, n))
         else:
             data = norm.rvs(loc=0, scale=1, size=(N, n))
         
+        # 计算每行（每次抽样）的均值
         sample_means = np.mean(data, axis=1)
         return sample_means
     
@@ -209,10 +194,11 @@ def generate_means(dist_type, n, N):
 # 生成样本均值
 sample_means = generate_means(dist_type, n, N)
 
-# ===================== 可视化模块 =====================
+# ===================== 可视化模块（中文正常显示） =====================
 if len(sample_means) > 0:
     fig, ax = plt.subplots(figsize=(12, 6))
 
+    # 绘制直方图（中文label正常显示）
     ax.hist(
         sample_means, 
         bins=min(50, len(sample_means)//50),
@@ -223,16 +209,19 @@ if len(sample_means) > 0:
         label='样本均值经验分布'
     )
 
+    # 拟合正态曲线（中文label正常显示）
     mu_fit, std_fit = norm.fit(sample_means)
     x = np.linspace(min(sample_means), max(sample_means), 200)
     p = norm.pdf(x, mu_fit, std_fit)
     ax.plot(x, p, 'r--', linewidth=2.5, label='拟合正态曲线')
 
+    # 显式获取中文字体（双重保障）
     try:
         font_prop = fm.FontProperties(fname=os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "simhei.ttf"), size=11)
     except:
         font_prop = fm.FontProperties(family=['SimHei', 'WenQuanYi Zen Hei'], size=11)
 
+    # 设置标题（dist_type中文正常显示，包含伽玛分布）
     ax.set_title(
         f"{dist_type} 在样本容量 n={n} 时的均值收敛演示",
         fontsize=16, fontweight='bold', fontproperties=font_prop
@@ -240,9 +229,11 @@ if len(sample_means) > 0:
     ax.set_xlabel("样本均值数值", fontsize=12, fontproperties=font_prop)
     ax.set_ylabel("概率密度", fontsize=12, fontproperties=font_prop)
     
+    # 图例中文正常显示
     ax.legend(prop=font_prop, fontsize=11)
     ax.grid(alpha=0.3)
 
+    # 显示图表
     st.pyplot(fig)
 
     # ===================== 统计指标展示 =====================
