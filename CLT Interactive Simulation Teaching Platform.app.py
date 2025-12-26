@@ -259,9 +259,9 @@ if len(sample_means) > 0:
     # 5列布局，统一原生metric样式
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        st.metric("样本均值期望 (Mean)", f"{mu_fit:.4f}")
+        st.metric("期望 (Mean)", f"{mu_fit:.4f}")
     with c2:
-        st.metric("样本均值标准差 (Std)", f"{std_fit:.4f}")
+        st.metric("标准差 (Std)", f"{std_fit:.4f}")
     with c3:
         # 模仿原生st.metric样式 + 调小数字尺寸
         st.markdown(f"""
@@ -288,8 +288,9 @@ st.markdown("""
 ### 📝 使用说明
 1.  左侧可选择不同的母体分布类型，并调节对应参数；
 2.  调整样本容量 n 和模拟次数 N，观察均值分布的收敛效果；
-3.  偏度越接近0，峰度越接近3，说明分布越对称（越接近正态分布）。
+3.  偏度越接近0，说明分布越对称（越接近正态分布）。
 """)  # 需求3：修改使用说明语句
+
 
 
 
