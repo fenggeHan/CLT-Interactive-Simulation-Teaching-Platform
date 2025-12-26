@@ -91,7 +91,7 @@ elif dist_type == "F 分布":
 elif dist_type == "泊松分布 (Poisson)":
     mu_pois = st.sidebar.slider("均值 μ", 1, 20, 3, step=1)  # 补充泊松分布参数
 
-# 核心抽样参数（增加步长，提升交互体验）
+# 核心抽样参数（增加步长，提升交互体验） 
 st.sidebar.subheader("CLT 抽样参数")
 n = st.sidebar.slider(
     "样本容量 (n)：每次抽取的样本数",
@@ -164,11 +164,11 @@ if len(sample_means) > 0:
     # 图表样式优化
     ax.set_title(
         f"{dist_type} 在样本容量 n={n} 时的均值收敛演示",
-        fontsize=16, fontweight='bold'
+        fontsize=16, fontweight='bold', family="SimHei"
     )
-    ax.set_xlabel("样本均值数值", fontsize=12)
-    ax.set_ylabel("概率密度", fontsize=12)
-    ax.legend(fontsize=11)
+    ax.set_xlabel("样本均值数值", fontsize=12, family="SimHei")
+    ax.set_ylabel("概率密度", fontsize=12, family="SimHei")
+    ax.legend(fontsize=11, family="SimHei")
     ax.grid(alpha=0.3)
 
     # 显示图表
