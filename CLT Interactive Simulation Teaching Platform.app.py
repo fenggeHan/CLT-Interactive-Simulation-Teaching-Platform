@@ -1,50 +1,29 @@
 import matplotlib
-matplotlib.use('agg')  # 设置为 agg 后端，用于无头环境（如 Streamlit Cloud）
+matplotlib.use('agg')  # 设置为 agg 后端，用于无头环境（如 Streamlit 和其他云平台）
 
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm, bernoulli, binom, geom, chi2, t, f, poisson, expon, uniform, skew
 import os
-import requests
-import platform
 import matplotlib.font_manager as fm
 
 # ===================== 核心修复：中文显示（适配本地+云部署） =====================
 def setup_chinese_font():
-    """下载并设置中文字体，优先加载本地字体，无则从GitHub加载"""
+    """统一配置中文字体，优先加载本地字体，无则使用系统字体"""
     
-    # 字体URL（GitHub上的字体文件）
-    font_url = "https://github.com/fenggeHan/CLT-Interactive-Simulation-Teaching-Platform/raw/main/simhei.ttf"
-    font_path = os.path.join(os.path.dirname(__file__), "simhei.ttf")
+    # 设置字体文件路径（假设字体文件存放在项目的 fonts 文件夹中）
+    font_path = os.path.join(os.path.dirname(__file__), "fonts", "simhei.ttf")  # 这里替换为您的路径
     
-    # 下载字体文件（如果字体文件不存在）
-    if not os.path.exists(font_path):
-        try:
-            response = requests.get(font_url)
-            with open(font_path, 'wb') as f:
-                f.write(response.content)
-            print("字体文件下载成功！")
-        except Exception as e:
-            print(f"下载字体失败: {e}")
-            font_path = None  # 如果下载失败，则字体路径为空
-    
-    # 设置字体
-    if font_path and os.path.exists(font_path):
+    # 如果字体文件存在，则加载
+    if os.path.exists(font_path):
         font_prop = fm.FontProperties(fname=font_path)
-        plt.rcParams["font.family"] = font_prop.get_name()
+        plt.rcParams["font.family"] = font_prop.get_name()  # 使用指定的字体
     else:
-        # 如果无法下载字体，使用默认字体（可以设置为系统默认的）
-        system = platform.system()
-        if system == "Windows":
-            plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei"]
-        elif system == "Darwin":  # macOS
-            plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "PingFang SC"]
-        else:  # Linux/Streamlit Cloud
-            plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "WenQuanYi Micro Hei"]
-    
-    # 解决负号显示问题
-    plt.rcParams["axes.unicode_minus"] = False
+        # 如果字体文件不存在，使用系统默认字体（Windows系统下常见的字体）
+        plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei"]  # 如果没有指定字体，则使用 Microsoft YaHei
+        # 解决负号显示问题
+        plt.rcParams["axes.unicode_minus"] = False
 
 # 执行字体配置
 setup_chinese_font()
@@ -62,7 +41,7 @@ st.markdown("""
 支持多种母体分布类型，可动态调节参数观察收敛效果。
 """)
 
-# ===================== 侧边栏参数配置（修复未定义参数问题） =====================
+# ===================== 侧边栏参数配置 =====================
 st.sidebar.header("🔧 配置模拟参数")
 
 # 分布选择列表
@@ -119,7 +98,7 @@ N = st.sidebar.slider(
     min_value=100, max_value=10000, value=2000, step=100
 )
 
-# ===================== 核心计算函数（修复参数缺失+增加鲁棒性） =====================
+# ===================== 核心计算函数 =====================
 def generate_means(dist_type, n, N):
     """生成样本均值数组，增加参数校验，避免报错"""
     try:
@@ -157,7 +136,7 @@ def generate_means(dist_type, n, N):
 # 生成样本均值
 sample_means = generate_means(dist_type, n, N)
 
-# ===================== 可视化模块（优化样式+中文显示） =====================
+# ===================== 可视化模块 =====================
 if len(sample_means) > 0:
     fig, ax = plt.subplots(figsize=(12, 6))
 
