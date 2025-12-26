@@ -161,14 +161,17 @@ if len(sample_means) > 0:
     p = norm.pdf(x, mu_fit, std_fit)
     ax.plot(x, p, 'r--', linewidth=2.5, label='拟合正态曲线')
 
-    # 图表样式优化
+    # 设置图例字体属性
+    font_prop = fm.FontProperties(fname=os.path.join(os.path.dirname(__file__), "SimHei.ttf"))
     ax.set_title(
         f"{dist_type} 在样本容量 n={n} 时的均值收敛演示",
-        fontsize=16, fontweight='bold', family="SimHei"
+        fontsize=16, fontweight='bold', family=font_prop.get_name()
     )
-    ax.set_xlabel("样本均值数值", fontsize=12, family="SimHei")
-    ax.set_ylabel("概率密度", fontsize=12, family="SimHei")
-    ax.legend(fontsize=11, family="SimHei")
+    ax.set_xlabel("样本均值数值", fontsize=12, family=font_prop.get_name())
+    ax.set_ylabel("概率密度", fontsize=12, family=font_prop.get_name())
+    
+    # 使用 FontProperties 来设置图例的字体
+    ax.legend(fontsize=11, prop=font_prop)
     ax.grid(alpha=0.3)
 
     # 显示图表
