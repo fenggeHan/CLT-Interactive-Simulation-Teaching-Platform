@@ -4,7 +4,8 @@ matplotlib.use('agg')  # 设置为 agg 后端，用于无头环境（如 Streaml
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import norm, bernoulli, binom, geom, chi2, t, f, poisson, expon, uniform, skew
+# 补充导入伽玛分布
+from scipy.stats import norm, bernoulli, binom, geom, chi2, t, f, poisson, expon, uniform, skew, gamma
 import os
 import matplotlib.font_manager as fm
 import requests
@@ -14,37 +15,33 @@ def setup_chinese_font():
     """统一配置中文字体，优先加载本地字体，无则使用系统字体，兼容本地+Streamlit Cloud"""
     # 下载并加载字体文件（通过 GitHub URL）
     font_url = "https://github.com/fenggeHan/CLT-Interactive-Simulation-Teaching-Platform/raw/main/simhei.ttf"
-    # 修正：使用当前脚本所在目录 + fonts 文件夹（安全兼容所有环境）
-    # 替代无效的 st.cache_resource.__dir__
-    current_dir = os.path.dirname(os.path.abspath(__file__))  # 当前脚本绝对路径
+    # 安全兼容所有环境的路径：当前脚本所在目录 + fonts 文件夹
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     font_dir = os.path.join(current_dir, "fonts")
     font_path = os.path.join(font_dir, "simhei.ttf")
 
     # 如果本地字体文件不存在，则从 GitHub 下载
     if not os.path.exists(font_path):
-        os.makedirs(font_dir, exist_ok=True)  # 创建fonts文件夹（不存在则创建）
+        os.makedirs(font_dir, exist_ok=True)
         try:
-            response = requests.get(font_url, timeout=15)  # 增加超时时间，提升云部署成功率
-            response.raise_for_status()  # 抛出请求异常（如404、500）
+            response = requests.get(font_url, timeout=15)
+            response.raise_for_status()
             with open(font_path, 'wb') as f:
                 f.write(response.content)
         except Exception as e:
             st.warning(f"下载字体失败，将使用系统默认中文字体：{str(e)}")
-            # 兜底：使用系统中文字体，避免报错
             plt.rcParams['font.family'] = ['SimHei', 'WenQuanYi Zen Hei', 'Microsoft YaHei', 'DejaVu Sans']
             plt.rcParams["axes.unicode_minus"] = False
             return
 
-    # 加载字体（增加异常捕获，提升鲁棒性）
+    # 加载字体
     try:
-        # 注册字体到matplotlib字体管理器
         fm.fontManager.addfont(font_path)
         font_prop = fm.FontProperties(fname=font_path)
         font_name = font_prop.get_name()
-        # 全局配置matplotlib中文显示
         plt.rcParams['font.family'] = font_name
-        plt.rcParams['font.sans-serif'] = [font_name]  # 覆盖sans-serif字体列表
-        plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示为方框的问题
+        plt.rcParams['font.sans-serif'] = [font_name]
+        plt.rcParams["axes.unicode_minus"] = False
     except Exception as e:
         st.warning(f"加载字体失败，将使用系统默认中文字体：{str(e)}")
         plt.rcParams['font.family'] = ['SimHei', 'WenQuanYi Zen Hei', 'Microsoft YaHei', 'DejaVu Sans']
@@ -69,7 +66,7 @@ st.markdown("""
 # ===================== 侧边栏参数配置 =====================
 st.sidebar.header("🔧 配置模拟参数")
 
-# 分布选择列表
+# 需求1：添加伽玛分布，放在泊松分布后面
 dist_list = [
     "0-1 分布 (Bernoulli)",
     "二项分布 (Binomial)",
@@ -80,16 +77,24 @@ dist_list = [
     "卡方分布 (Chi-Square)",
     "t 分布",
     "F 分布",
-    "泊松分布 (Poisson)"
+    "泊松分布 (Poisson)",
+    "伽玛分布 (Gamma)"  # 新增：伽玛分布
 ]
 dist_type = st.sidebar.selectbox("选择母体分布类型", dist_list)
 
-# 初始化所有可能的分布参数（避免未定义报错）
+# 初始化所有可能的分布参数（包含新增参数，避免未定义报错）
 p_param = 0.5
 n_binom = 10
 p_binom = 0.5
-p_geom = 0.5  # 提前初始化几何分布参数
-mu_pois = 3   # 提前初始化泊松分布参数
+p_geom = 0.5
+mu_pois = 3
+# 需求2：初始化正态分布、指数分布可调节参数
+norm_loc = 0    # 正态分布均值
+norm_scale = 1  # 正态分布标准差
+expon_scale = 1 # 指数分布尺度参数（对应均值=scale）
+# 初始化伽玛分布参数
+gamma_a = 2     # 伽玛分布形状参数
+gamma_scale = 1 # 伽玛分布尺度参数
 df_chi = 5
 df_t = 10
 df_n = 10
@@ -104,6 +109,16 @@ elif dist_type == "二项分布 (Binomial)":
     p_binom = st.sidebar.slider("成功概率 p", 0.1, 0.9, 0.5, step=0.05)
 elif dist_type == "几何分布 (Geometric)":
     p_geom = st.sidebar.slider("成功概率 p", 0.1, 0.9, 0.5, step=0.05)
+elif dist_type == "均匀分布 (Uniform)":
+    # 均匀分布可保留默认，也可扩展，此处保持原有逻辑
+    pass
+elif dist_type == "指数分布 (Exponential)":
+    # 需求2：添加指数分布可调节参数（尺度参数，均值=scale）
+    expon_scale = st.sidebar.slider("尺度参数 scale（均值=scale）", 0.1, 10.0, 1.0, step=0.1)
+elif dist_type == "正态分布 (Normal)":
+    # 需求2：添加正态分布可调节参数（均值loc、标准差scale）
+    norm_loc = st.sidebar.slider("均值 μ (loc)", -10.0, 10.0, 0.0, step=0.5)
+    norm_scale = st.sidebar.slider("标准差 σ (scale)", 0.1, 10.0, 1.0, step=0.1)
 elif dist_type == "卡方分布 (Chi-Square)":
     df_chi = st.sidebar.slider("自由度 df", 1, 20, 5, step=1)
 elif dist_type == "t 分布":
@@ -113,16 +128,27 @@ elif dist_type == "F 分布":
     df_d = st.sidebar.slider("分母自由度 dfd", 1, 50, 20, step=1)
 elif dist_type == "泊松分布 (Poisson)":
     mu_pois = st.sidebar.slider("均值 μ", 1, 20, 3, step=1)
+elif dist_type == "伽玛分布 (Gamma)":
+    # 新增：伽玛分布参数调节
+    gamma_a = st.sidebar.slider("形状参数 a", 0.5, 20.0, 2.0, step=0.5)
+    gamma_scale = st.sidebar.slider("尺度参数 scale", 0.1, 10.0, 1.0, step=0.1)
 
-# 核心抽样参数（增加步长，提升交互体验） 
+# 需求3：样本容量滑动条标注教学常用范围及临界值（30、100、500）
 st.sidebar.subheader("CLT 抽样参数")
 n = st.sidebar.slider(
-    "样本容量 (n)：每次抽取的样本数",
-    min_value=1, max_value=5000, value=30, step=10
+    "样本容量 (n)：每次抽取的样本数【教学常用：30(大样本临界值)、100、500】",
+    min_value=1,
+    max_value=5000,
+    value=30,
+    step=10,
+    help="教学关键临界值：n=30（大样本最低要求）、n=100（收敛效果明显）、n=500（收敛效果极佳）"
 )
 N = st.sidebar.slider(
     "模拟次数 (N)：重复抽样的总次数",
-    min_value=100, max_value=10000, value=2000, step=100
+    min_value=100,
+    max_value=10000,
+    value=2000,
+    step=100
 )
 
 # ===================== 核心计算函数 =====================
@@ -138,9 +164,11 @@ def generate_means(dist_type, n, N):
         elif dist_type == "均匀分布 (Uniform)":
             data = uniform.rvs(loc=0, scale=1, size=(N, n))
         elif dist_type == "指数分布 (Exponential)":
-            data = expon.rvs(scale=1, size=(N, n))
+            # 使用可调节的指数分布参数
+            data = expon.rvs(scale=expon_scale, size=(N, n))
         elif dist_type == "正态分布 (Normal)":
-            data = norm.rvs(loc=0, scale=1, size=(N, n))
+            # 使用可调节的正态分布参数
+            data = norm.rvs(loc=norm_loc, scale=norm_scale, size=(N, n))
         elif dist_type == "卡方分布 (Chi-Square)":
             data = chi2.rvs(df_chi, size=(N, n))
         elif dist_type == "t 分布":
@@ -149,8 +177,11 @@ def generate_means(dist_type, n, N):
             data = f.rvs(df_n, df_d, size=(N, n))
         elif dist_type == "泊松分布 (Poisson)":
             data = poisson.rvs(mu_pois, size=(N, n))
+        elif dist_type == "伽玛分布 (Gamma)":
+            # 新增：伽玛分布数据生成
+            data = gamma.rvs(gamma_a, scale=gamma_scale, size=(N, n))
         else:
-            data = norm.rvs(loc=0, scale=1, size=(N, n))  # 兜底默认分布
+            data = norm.rvs(loc=0, scale=1, size=(N, n))
         
         # 计算每行（每次抽样）的均值
         sample_means = np.mean(data, axis=1)
@@ -163,7 +194,7 @@ def generate_means(dist_type, n, N):
 # 生成样本均值
 sample_means = generate_means(dist_type, n, N)
 
-# ===================== 可视化模块（中文正常显示，无路径报错） =====================
+# ===================== 可视化模块（中文正常显示） =====================
 if len(sample_means) > 0:
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -190,7 +221,7 @@ if len(sample_means) > 0:
     except:
         font_prop = fm.FontProperties(family=['SimHei', 'WenQuanYi Zen Hei'], size=11)
 
-    # 设置标题（dist_type中文正常显示）
+    # 设置标题（dist_type中文正常显示，包含伽玛分布）
     ax.set_title(
         f"{dist_type} 在样本容量 n={n} 时的均值收敛演示",
         fontsize=16, fontweight='bold', fontproperties=font_prop
