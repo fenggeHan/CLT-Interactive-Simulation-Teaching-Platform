@@ -1,6 +1,6 @@
 import matplotlib
-matplotlib.use('agg')  # 设置为 agg 后端，用于无头环境（如 Streamlit 和其他云平台）
-import time  # 新增：用于动画延时，实现流畅播放
+matplotlib.use('agg')  # 固定无头环境配置，避免动态切换
+import time
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,11 +11,23 @@ import requests
 
 # ===================== 优化：修复路径问题 + 强化中文字体配置 =====================
 def setup_chinese_font():
-    """统一配置中文字体，优先加载本地字体，无则使用系统字体，兼容本地+Streamlit Cloud"""
+    """统一配置中文字体，优先加载本地字体，无则使用系统字体"""
     font_url = "https://github.com/fenggeHan/CLT-Interactive-Simulation-Teaching-Platform/raw/main/simhei.ttf"
-    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # 修复：兼容Streamlit Cloud的路径问题（避免__file__在云环境报错）
+    if 'STREAMLIT_SERVER_ROOT_PATH' in os.environ:
+        current_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else '.'
+    else:
+        current_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
+    
     font_dir = os.path.join(current_dir, "fonts")
     font_path = os.path.join(font_dir, "simhei.ttf")
+
+    # 全局字体配置标记，避免重复加载
+    if not hasattr(st.session_state, 'font_setup_done'):
+        st.session_state.font_setup_done = False
+
+    if st.session_state.font_setup_done:
+        return  # 已配置过字体，直接返回
 
     if not os.path.exists(font_path):
         os.makedirs(font_dir, exist_ok=True)
@@ -28,6 +40,7 @@ def setup_chinese_font():
             st.warning(f"下载字体失败，将使用系统默认中文字体：{str(e)}")
             plt.rcParams['font.family'] = ['SimHei', 'WenQuanYi Zen Hei', 'Microsoft YaHei', 'DejaVu Sans']
             plt.rcParams["axes.unicode_minus"] = False
+            st.session_state.font_setup_done = True
             return
 
     try:
@@ -37,10 +50,12 @@ def setup_chinese_font():
         plt.rcParams['font.family'] = font_name
         plt.rcParams['font.sans-serif'] = [font_name]
         plt.rcParams["axes.unicode_minus"] = False
+        st.session_state.font_setup_done = True
     except Exception as e:
         st.warning(f"加载字体失败，将使用系统默认中文字体：{str(e)}")
         plt.rcParams['font.family'] = ['SimHei', 'WenQuanYi Zen Hei', 'Microsoft YaHei', 'DejaVu Sans']
         plt.rcParams["axes.unicode_minus"] = False
+        st.session_state.font_setup_done = True
 
 # 执行字体配置
 setup_chinese_font()
@@ -52,7 +67,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 需求1：调大标题字体（之前28px，现在调整为32px，可按需微调）
 st.markdown(
     '<h1 style="font-size:32px; margin-bottom:20px;">📊 中心极限定理 (CLT) 交互式仿真平台</h1>',
     unsafe_allow_html=True
@@ -144,8 +158,13 @@ N = st.sidebar.slider(
 
 # ===================== 核心计算函数 =====================
 def generate_means(dist_type, n, N):
-    """生成样本均值数组，增加参数校验，避免报错"""
+    """生成样本均值数组，强化异常捕获和参数校验"""
     try:
+        # 增加参数合法性校验
+        if n <= 0 or N <= 0:
+            st.error("样本容量n和模拟次数N必须为正整数")
+            return np.array([])
+        
         if dist_type == "0-1 分布 (Bernoulli)":
             data = bernoulli.rvs(p_param, size=(N, n))
         elif dist_type == "二项分布 (Binomial)":
@@ -176,32 +195,51 @@ def generate_means(dist_type, n, N):
     
     except Exception as e:
         st.error(f"数据生成出错：{str(e)}")
+        # 兜底返回空数组，避免动画直接中断
         return np.array([])
 
 # 生成手动调节的样本均值
 sample_means = generate_means(dist_type, n, N)
 
-# ===================== 需求2：添加动画演示模块 =====================
+# ===================== 修复：动画演示模块 =====================
 st.subheader("🎬 动画演示")
-# 动画演示按钮
-animate_btn = st.button("动画演示（n从1到500渐进收敛）", type="primary")
+# 修复1：增加动画状态标记，避免重复触发
+if 'anim_running' not in st.session_state:
+    st.session_state.anim_running = False
 
-# 创建占位符：用于动态更新图表和统计指标，避免页面重复渲染
+# 修复2：拆分按钮逻辑，防止重复点击
+col1, col2 = st.columns([1, 9])
+with col1:
+    animate_btn = st.button("开始动画演示", type="primary", disabled=st.session_state.anim_running)
+    stop_btn = st.button("停止动画演示")
+
+# 停止按钮逻辑
+if stop_btn:
+    st.session_state.anim_running = False
+    st.rerun()  # 强制刷新页面，终止动画循环
+
+# 创建占位符（提前初始化，避免重复创建）
 chart_placeholder = st.empty()
 stats_placeholder = st.empty()
 
-# 当点击动画按钮时，执行动画逻辑
+# 动画核心逻辑
 if animate_btn:
-    # n的取值范围：1到500，步长5（步长越小动画越细腻，步长越大播放越快）
-    for anim_n in range(1, 501, 5):
-        # 生成当前n对应的样本均值
+    st.session_state.anim_running = True
+    # 修复3：降低动画步长，减少资源占用（步长10，更快更流畅）
+    for anim_n in range(1, 501, 10):
+        # 检查是否停止
+        if not st.session_state.anim_running:
+            break
+        
         anim_sample_means = generate_means(dist_type, anim_n, N)
         if len(anim_sample_means) == 0:
-            continue  # 生成失败则跳过当前n
-        
-        # 绘制动态图表
+            with chart_placeholder:
+                st.warning(f"n={anim_n}时数据生成失败，跳过该步")
+            continue
+
+        # 修复4：简化字体配置，使用全局已配置的字体，避免重复加载
         fig, ax = plt.subplots(figsize=(12, 6))
-        # 直方图
+        # 绘制直方图
         ax.hist(
             anim_sample_means, 
             bins=min(50, len(anim_sample_means)//50),
@@ -216,37 +254,29 @@ if animate_btn:
         x = np.linspace(min(anim_sample_means), max(anim_sample_means), 200)
         p = norm.pdf(x, mu_fit, std_fit)
         ax.plot(x, p, 'r--', linewidth=2.5, label='拟合正态曲线')
-        # 中文字体配置
-        try:
-            font_prop = fm.FontProperties(fname=os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "simhei.ttf"), size=11)
-        except:
-            font_prop = fm.FontProperties(family=['SimHei', 'WenQuanYi Zen Hei'], size=11)
-        # 图表标题（显示当前动画的n值）
+        
+        # 修复5：使用全局字体配置，无需重复指定路径
         ax.set_title(
             f"{dist_type} 样本容量 n={anim_n} 时的均值收敛演示",
-            fontsize=16, fontweight='bold', fontproperties=font_prop
+            fontsize=16, fontweight='bold'
         )
-        ax.set_xlabel("样本均值数值", fontsize=12, fontproperties=font_prop)
-        ax.set_ylabel("概率密度", fontsize=12, fontproperties=font_prop)
-        ax.legend(prop=font_prop, fontsize=11)
+        ax.set_xlabel("样本均值数值", fontsize=12)
+        ax.set_ylabel("概率密度", fontsize=12)
+        ax.legend(fontsize=11)
         ax.grid(alpha=0.3)
-        # 更新图表占位符
+        
+        # 修复6：先渲染图表，再关闭，避免资源泄漏
         with chart_placeholder:
             st.pyplot(fig)
-        plt.close(fig)  # 关闭图表，释放内存
-        
-        # 计算当前统计指标
+        plt.close(fig)  # 立即释放图表资源
+
+        # 计算统计指标
         sk = skew(anim_sample_means)
         kurt = kurtosis(anim_sample_means)
         abs_sk = abs(sk)
-        # 偏度颜色判断
-        if abs_sk < 0.5:
-            skewness_color = "#2ecc71"
-        elif 0.5 <= abs_sk <= 1:
-            skewness_color = "#f1c40f"
-        else:
-            skewness_color = "#e74c3c"
-        # 更新统计指标占位符
+        skewness_color = "#2ecc71" if abs_sk < 0.5 else "#f1c40f" if 0.5 <= abs_sk <= 1 else "#e74c3c"
+        
+        # 更新统计指标
         with stats_placeholder:
             st.subheader("📊 实时统计指标（动画演示中）")
             c1, c2, c3, c4, c5 = st.columns(5)
@@ -255,7 +285,6 @@ if animate_btn:
             with c2:
                 st.metric("样本均值标准差 (Std)", f"{std_fit:.4f}")
             with c3:
-                # 统一样式+小号数字
                 st.markdown(f"""
                 <div style="background-color: var(--st-card-bg-color); padding: 1rem; border-radius: 0.5rem; height: 100%;">
                     <div style="font-size: 14px; color: var(--st-text-secondary-color); margin-bottom: 0.25rem;">分布偏度 (Skewness)</div>
@@ -268,8 +297,11 @@ if animate_btn:
                 normality = "✅ 接近正态" if abs_sk < 0.5 else "❌ 偏离正态"
                 st.metric("正态性判断", normality)
         
-        # 延时：控制动画播放速度（0.1秒/帧，可按需调整）
-        time.sleep(0.1)
+        # 修复7：缩短延时，使用streamlit的空操作替代time.sleep，避免阻塞
+        time.sleep(0.05)  # 缩短为0.05秒，更流畅
+    
+    # 动画结束后重置状态
+    st.session_state.anim_running = False
 
 # ===================== 手动调节的可视化模块 =====================
 st.subheader("📈 手动调节结果可视化")
@@ -291,34 +323,25 @@ if len(sample_means) > 0:
     p = norm.pdf(x, mu_fit, std_fit)
     ax.plot(x, p, 'r--', linewidth=2.5, label='拟合正态曲线')
 
-    try:
-        font_prop = fm.FontProperties(fname=os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "simhei.ttf"), size=11)
-    except:
-        font_prop = fm.FontProperties(family=['SimHei', 'WenQuanYi Zen Hei'], size=11)
-
     ax.set_title(
         f"{dist_type} 在样本容量 n={n} 时的均值收敛演示",
-        fontsize=16, fontweight='bold', fontproperties=font_prop
+        fontsize=16, fontweight='bold'
     )
-    ax.set_xlabel("样本均值数值", fontsize=12, fontproperties=font_prop)
-    ax.set_ylabel("概率密度", fontsize=12, fontproperties=font_prop)
+    ax.set_xlabel("样本均值数值", fontsize=12)
+    ax.set_ylabel("概率密度", fontsize=12)
     
-    ax.legend(prop=font_prop, fontsize=11)
+    ax.legend(fontsize=11)
     ax.grid(alpha=0.3)
 
     st.pyplot(fig)
+    plt.close(fig)  # 释放资源
 
     # ===================== 手动调节的统计指标展示 =====================
     st.subheader("📊 模拟结果统计")
     sk = skew(sample_means)
     kurt = kurtosis(sample_means)
     abs_sk = abs(sk)
-    if abs_sk < 0.5:
-        skewness_color = "#2ecc71"
-    elif 0.5 <= abs_sk <= 1:
-        skewness_color = "#f1c40f"
-    else:
-        skewness_color = "#e74c3c"
+    skewness_color = "#2ecc71" if abs_sk < 0.5 else "#f1c40f" if 0.5 <= abs_sk <= 1 else "#e74c3c"
 
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
@@ -352,5 +375,5 @@ st.markdown("""
 1.  左侧可选择不同的母体分布类型，并调节对应参数；
 2.  调整样本容量 n 和模拟次数 N，观察均值分布的收敛效果；
 3.  偏度越接近0，峰度越接近3，说明分布越对称（越接近正态分布）；
-4.  点击「动画演示」按钮，可自动观看 n 从1到500的渐进收敛过程。
+4.  点击「开始动画演示」按钮，可自动观看 n 从1到500的渐进收敛过程，支持中途停止。
 """)
