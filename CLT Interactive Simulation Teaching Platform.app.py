@@ -242,12 +242,12 @@ if len(sample_means) > 0:
     # 显示图表
     st.pyplot(fig)
 
-    # ===================== 统计指标展示 =====================
+        # ===================== 统计指标展示 =====================
     st.subheader("📊 模拟结果统计")
-    # 计算偏度和新增峰度
+    # 计算偏度和峰度
     sk = skew(sample_means)
-    kurt = kurtosis(sample_means)  # 需求2：计算峰度
-    # 需求4：判断偏度颜色区间
+    kurt = kurtosis(sample_means)
+    # 判断偏度颜色区间
     abs_sk = abs(sk)
     if abs_sk < 0.5:
         skewness_color = "#2ecc71"  # 绿色
@@ -256,27 +256,25 @@ if len(sample_means) > 0:
     else:
         skewness_color = "#e74c3c"  # 红色
 
-    # 调整列数为5列，容纳均值、标准差、偏度（带颜色）、峰度、正态性判断
+    # 5列布局，统一原生metric样式
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.metric("样本均值期望 (Mean)", f"{mu_fit:.4f}")
     with c2:
         st.metric("样本均值标准差 (Std)", f"{std_fit:.4f}")
     with c3:
-        # 需求4：带颜色标注的偏度展示（保持metric样式一致）
+        # 模仿原生st.metric样式 + 调小数字尺寸
         st.markdown(f"""
-        <div style="background-color:#f0f2f6; padding:1rem; border-radius:0.5rem;">
-            <div style="font-size:14px; color:#64748b; margin-bottom:0.5rem;">分布偏度 (Skewness)</div>
-            <div style="font-size:24px; font-weight:600; color:{skewness_color};">{sk:.4f}</div>
+        <div style="background-color: var(--st-card-bg-color); padding: 1rem; border-radius: 0.5rem; height: 100%;">
+            <div style="font-size: 14px; color: var(--st-text-secondary-color); margin-bottom: 0.25rem;">分布偏度 (Skewness)</div>
+            <div style="font-size: 20px; font-weight: 600; color: {skewness_color};">{sk:.4f}</div>
         </div>
         """, unsafe_allow_html=True)
     with c4:
-        # 需求2：新增峰度展示
         st.metric("分布峰度 (Kurtosis)", f"{kurt:.4f}")
     with c5:
         normality = "✅ 接近正态" if abs(sk) < 0.5 else "❌ 偏离正态"
         st.metric("正态性判断", normality)
-
     st.info("""
     💡 核心规律：随着样本容量 n 的增加（尤其是≥30时），无论原始母体分布类型如何，
     样本均值的分布都会逐渐趋近于正态分布（红色虚线）；当 n≥1000 时，收敛效果会非常显著。
@@ -292,5 +290,6 @@ st.markdown("""
 2.  调整样本容量 n 和模拟次数 N，观察均值分布的收敛效果；
 3.  偏度越接近0，峰度越接近3，说明分布越对称（越接近正态分布）。
 """)  # 需求3：修改使用说明语句
+
 
 
