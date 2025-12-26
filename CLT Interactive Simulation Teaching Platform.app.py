@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use('agg')  # 设置为 agg 后端，用于无头环境（如 Streamlit Cloud）
+
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,7 +16,7 @@ def setup_chinese_font():
     
     # 字体URL（GitHub上的字体文件）
     font_url = "https://github.com/fenggeHan/CLT-Interactive-Simulation-Teaching-Platform/raw/main/simhei.ttf"
-    font_path = os.path.join(os.path.dirname(__file__), "simhei.ttf")  # 项目中的字体路径
+    font_path = os.path.join(os.path.dirname(__file__), "simhei.ttf")
     
     # 下载字体文件（如果字体文件不存在）
     if not os.path.exists(font_path):
@@ -29,7 +32,7 @@ def setup_chinese_font():
     # 设置字体
     if font_path and os.path.exists(font_path):
         font_prop = fm.FontProperties(fname=font_path)
-        plt.rcParams["font.family"] = font_prop.get_name()  # 使用下载的字体
+        plt.rcParams["font.family"] = font_prop.get_name()
     else:
         # 如果无法下载字体，使用默认字体（可以设置为系统默认的）
         system = platform.system()
