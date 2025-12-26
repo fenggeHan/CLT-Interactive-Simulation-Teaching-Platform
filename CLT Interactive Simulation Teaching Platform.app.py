@@ -4,8 +4,8 @@ matplotlib.use('agg')  # 设置为 agg 后端，用于无头环境（如 Streaml
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-# 补充导入伽玛分布
-from scipy.stats import norm, bernoulli, binom, geom, chi2, t, f, poisson, expon, uniform, skew, gamma
+# 补充导入伽玛分布 + 峰度函数kurtosis
+from scipy.stats import norm, bernoulli, binom, geom, chi2, t, f, poisson, expon, uniform, skew, gamma, kurtosis
 import os
 import matplotlib.font_manager as fm
 import requests
@@ -52,12 +52,18 @@ setup_chinese_font()
 
 # ===================== 页面基础配置 =====================
 st.set_page_config(
-    page_title="中心极限定理交互式仿真平台",
+    page_title="中心极限定理 (CLT) 交互式仿真平台",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-st.title("📊 中心极限定理 (CLT) 交互式仿真平台")
+# 需求1：缩小标题字体（用markdown自定义字体大小，比默认title小）
+st.markdown(
+    '<h1 style="font-size:28px; margin-bottom:20px;">📊 中心极限定理 (CLT) 交互式仿真平台</h1>',
+    unsafe_allow_html=True
+)
+# 替代原有 st.title("📊 中心极限定理 (CLT) 交互式仿真平台")
+
 st.markdown("""
 该系统展示了**独立同分布随机变量序列**的均值，在样本容量较大时，其分布趋于**正态分布**的过程。
 支持多种母体分布类型，可动态调节参数观察收敛效果。
@@ -133,7 +139,7 @@ elif dist_type == "伽玛分布 (Gamma)":
     gamma_a = st.sidebar.slider("形状参数 a", 0.5, 20.0, 2.0, step=0.5)
     gamma_scale = st.sidebar.slider("尺度参数 scale", 0.1, 10.0, 1.0, step=0.1)
 
-# 需求3：样本容量滑动条标注教学常用范围及临界值（30、100、500）
+# 需求3：样本容量滑动条标注教学常用范围及临界值
 st.sidebar.subheader("CLT 抽样参数")
 n = st.sidebar.slider(
     "样本容量 (n)：每次抽取的样本数【教学常用：30(大样本临界值)、100、500】",
@@ -238,15 +244,36 @@ if len(sample_means) > 0:
 
     # ===================== 统计指标展示 =====================
     st.subheader("📊 模拟结果统计")
-    c1, c2, c3, c4 = st.columns(4)
+    # 计算偏度和新增峰度
+    sk = skew(sample_means)
+    kurt = kurtosis(sample_means)  # 需求2：计算峰度
+    # 需求4：判断偏度颜色区间
+    abs_sk = abs(sk)
+    if abs_sk < 0.5:
+        skewness_color = "#2ecc71"  # 绿色
+    elif 0.5 <= abs_sk <= 1:
+        skewness_color = "#f1c40f"  # 黄色
+    else:
+        skewness_color = "#e74c3c"  # 红色
+
+    # 调整列数为5列，容纳均值、标准差、偏度（带颜色）、峰度、正态性判断
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.metric("样本均值期望 (Mean)", f"{mu_fit:.4f}")
     with c2:
         st.metric("样本均值标准差 (Std)", f"{std_fit:.4f}")
     with c3:
-        sk = skew(sample_means)
-        st.metric("分布偏度 (Skewness)", f"{sk:.4f}")
+        # 需求4：带颜色标注的偏度展示（保持metric样式一致）
+        st.markdown(f"""
+        <div style="background-color:#f0f2f6; padding:1rem; border-radius:0.5rem;">
+            <div style="font-size:14px; color:#64748b; margin-bottom:0.5rem;">分布偏度 (Skewness)</div>
+            <div style="font-size:24px; font-weight:600; color:{skewness_color};">{sk:.4f}</div>
+        </div>
+        """, unsafe_allow_html=True)
     with c4:
+        # 需求2：新增峰度展示
+        st.metric("分布峰度 (Kurtosis)", f"{kurt:.4f}")
+    with c5:
         normality = "✅ 接近正态" if abs(sk) < 0.5 else "❌ 偏离正态"
         st.metric("正态性判断", normality)
 
@@ -263,5 +290,5 @@ st.markdown("""
 ### 📝 使用说明
 1.  左侧可选择不同的母体分布类型，并调节对应参数；
 2.  调整样本容量 n 和模拟次数 N，观察均值分布的收敛效果；
-3.  偏度越接近0，说明分布越对称（越接近正态分布）。
-""")
+3.  偏度越接近0，峰度越接近3，说明分布越对称（越接近正态分布）。
+""")  # 需求3：修改使用说明语句
