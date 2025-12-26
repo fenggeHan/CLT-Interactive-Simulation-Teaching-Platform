@@ -9,43 +9,45 @@ import os
 import matplotlib.font_manager as fm
 import requests
 
-# ===================== 优化：强化中文字体配置（确保matplotlib生效） =====================
+# ===================== 优化：修复路径问题 + 强化中文字体配置 =====================
 def setup_chinese_font():
-    """统一配置中文字体，优先加载本地字体，无则使用系统字体，确保matplotlib完全支持中文"""
+    """统一配置中文字体，优先加载本地字体，无则使用系统字体，兼容本地+Streamlit Cloud"""
     # 下载并加载字体文件（通过 GitHub URL）
     font_url = "https://github.com/fenggeHan/CLT-Interactive-Simulation-Teaching-Platform/raw/main/simhei.ttf"
-    # 兼容 Streamlit 云部署环境（避免路径问题）
-    font_dir = os.path.join(st.cache_resource.__dir__, "fonts")
+    # 修正：使用当前脚本所在目录 + fonts 文件夹（安全兼容所有环境）
+    # 替代无效的 st.cache_resource.__dir__
+    current_dir = os.path.dirname(os.path.abspath(__file__))  # 当前脚本绝对路径
+    font_dir = os.path.join(current_dir, "fonts")
     font_path = os.path.join(font_dir, "simhei.ttf")
 
     # 如果本地字体文件不存在，则从 GitHub 下载
     if not os.path.exists(font_path):
-        os.makedirs(font_dir, exist_ok=True)
+        os.makedirs(font_dir, exist_ok=True)  # 创建fonts文件夹（不存在则创建）
         try:
-            response = requests.get(font_url, timeout=10)
-            response.raise_for_status()  # 抛出请求异常
+            response = requests.get(font_url, timeout=15)  # 增加超时时间，提升云部署成功率
+            response.raise_for_status()  # 抛出请求异常（如404、500）
             with open(font_path, 'wb') as f:
                 f.write(response.content)
         except Exception as e:
-            st.warning(f"下载字体失败，将使用系统默认中文字体：{e}")
-            # 兜底：使用系统中文字体
-            plt.rcParams['font.family'] = ['DejaVu Sans', 'SimHei', 'WenQuanYi Zen Hei', 'Microsoft YaHei']
+            st.warning(f"下载字体失败，将使用系统默认中文字体：{str(e)}")
+            # 兜底：使用系统中文字体，避免报错
+            plt.rcParams['font.family'] = ['SimHei', 'WenQuanYi Zen Hei', 'Microsoft YaHei', 'DejaVu Sans']
             plt.rcParams["axes.unicode_minus"] = False
             return
 
-    # 加载字体
+    # 加载字体（增加异常捕获，提升鲁棒性）
     try:
-        # 注册字体
-        font_prop = fm.FontProperties(fname=font_path)
+        # 注册字体到matplotlib字体管理器
         fm.fontManager.addfont(font_path)
+        font_prop = fm.FontProperties(fname=font_path)
         font_name = font_prop.get_name()
-        # 全局配置：设置matplotlib默认字体为中文字体
+        # 全局配置matplotlib中文显示
         plt.rcParams['font.family'] = font_name
-        plt.rcParams['font.sans-serif'] = [font_name]  # 补充sans-serif字体
+        plt.rcParams['font.sans-serif'] = [font_name]  # 覆盖sans-serif字体列表
         plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示为方框的问题
     except Exception as e:
-        st.warning(f"加载字体失败，将使用系统默认中文字体：{e}")
-        plt.rcParams['font.family'] = ['DejaVu Sans', 'SimHei', 'WenQuanYi Zen Hei', 'Microsoft YaHei']
+        st.warning(f"加载字体失败，将使用系统默认中文字体：{str(e)}")
+        plt.rcParams['font.family'] = ['SimHei', 'WenQuanYi Zen Hei', 'Microsoft YaHei', 'DejaVu Sans']
         plt.rcParams["axes.unicode_minus"] = False
 
 # 执行字体配置
@@ -86,8 +88,8 @@ dist_type = st.sidebar.selectbox("选择母体分布类型", dist_list)
 p_param = 0.5
 n_binom = 10
 p_binom = 0.5
-p_geom = 0.5  # 提前初始化几何分布参数，避免未定义
-mu_pois = 3   # 提前初始化泊松分布参数，避免未定义
+p_geom = 0.5  # 提前初始化几何分布参数
+mu_pois = 3   # 提前初始化泊松分布参数
 df_chi = 5
 df_t = 10
 df_n = 10
@@ -161,11 +163,11 @@ def generate_means(dist_type, n, N):
 # 生成样本均值
 sample_means = generate_means(dist_type, n, N)
 
-# ===================== 可视化模块（中文可正常显示） =====================
+# ===================== 可视化模块（中文正常显示，无路径报错） =====================
 if len(sample_means) > 0:
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    # 绘制直方图（恢复中文label，可正常显示）
+    # 绘制直方图（中文label正常显示）
     ax.hist(
         sample_means, 
         bins=min(50, len(sample_means)//50),
@@ -173,29 +175,30 @@ if len(sample_means) > 0:
         alpha=0.7, 
         color='#2E86AB', 
         edgecolor='white',
-        label='样本均值经验分布'  # 恢复中文
+        label='样本均值经验分布'
     )
 
-    # 拟合正态曲线（恢复中文label，可正常显示）
+    # 拟合正态曲线（中文label正常显示）
     mu_fit, std_fit = norm.fit(sample_means)
     x = np.linspace(min(sample_means), max(sample_means), 200)
     p = norm.pdf(x, mu_fit, std_fit)
-    ax.plot(x, p, 'r--', linewidth=2.5, label='拟合正态曲线')  # 恢复中文
+    ax.plot(x, p, 'r--', linewidth=2.5, label='拟合正态曲线')
 
-    # 显式指定字体（双重保障，确保中文生效）
-    font_prop = fm.FontProperties(fname=os.path.join(os.path.join(st.cache_resource.__dir__, "fonts"), "simhei.ttf"), size=11)
-    if not os.path.exists(font_prop.get_file()):
-        font_prop = fm.FontProperties(family=['SimHei', 'WenQuanYi Zen Hei', 'Microsoft YaHei'], size=11)
+    # 显式获取中文字体（双重保障）
+    try:
+        font_prop = fm.FontProperties(fname=os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts", "simhei.ttf"), size=11)
+    except:
+        font_prop = fm.FontProperties(family=['SimHei', 'WenQuanYi Zen Hei'], size=11)
 
-    # 设置标题（dist_type中文可正常显示）
+    # 设置标题（dist_type中文正常显示）
     ax.set_title(
         f"{dist_type} 在样本容量 n={n} 时的均值收敛演示",
-        fontsize=16, fontweight='bold', fontproperties=font_prop  # 显式指定字体
+        fontsize=16, fontweight='bold', fontproperties=font_prop
     )
-    ax.set_xlabel("样本均值数值", fontsize=12, fontproperties=font_prop)  # 显式指定字体
-    ax.set_ylabel("概率密度", fontsize=12, fontproperties=font_prop)      # 显式指定字体
+    ax.set_xlabel("样本均值数值", fontsize=12, fontproperties=font_prop)
+    ax.set_ylabel("概率密度", fontsize=12, fontproperties=font_prop)
     
-    # 图例显式指定字体
+    # 图例中文正常显示
     ax.legend(prop=font_prop, fontsize=11)
     ax.grid(alpha=0.3)
 
