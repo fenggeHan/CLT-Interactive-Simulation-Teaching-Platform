@@ -12,20 +12,14 @@ import platform
 # ===================== 核心修复：中文显示（适配本地+云部署） =====================
 def setup_chinese_font():
     """统一配置中文字体，优先加载本地字体，无则用系统兼容字体"""
-    # 1. 尝试加载本地SimHei字体（需将SimHei.ttf放在项目根目录）
-    font_path = os.path.join(os.path.dirname(__file__), "SimHei.ttf")  # 确保SimHei.ttf存在
-    if os.path.exists(font_path):
-        font_prop = fm.FontProperties(fname=font_path)
-        plt.rcParams["font.family"] = font_prop.get_name()
-    else:
-        # 2. 适配不同系统的默认中文字体
-        system = platform.system()
-        if system == "Windows":
-            plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei"]  # Windows系统下设置
-        elif system == "Darwin":  # macOS
-            plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "PingFang SC"]
-        else:  # Linux/Streamlit Cloud
-            plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "WenQuanYi Micro Hei"]
+    # 1. 适配不同系统的默认中文字体
+    system = platform.system()
+    if system == "Windows":
+        plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei"]  # 使用Microsoft YaHei
+    elif system == "Darwin":  # macOS
+        plt.rcParams["font.sans-serif"] = ["Arial Unicode MS", "PingFang SC"]
+    else:  # Linux/Streamlit Cloud
+        plt.rcParams["font.sans-serif"] = ["DejaVu Sans", "WenQuanYi Micro Hei"]
     # 解决负号显示问题
     plt.rcParams["axes.unicode_minus"] = False
 
@@ -162,16 +156,14 @@ if len(sample_means) > 0:
     ax.plot(x, p, 'r--', linewidth=2.5, label='拟合正态曲线')
 
     # 设置图例字体属性
-    font_prop = fm.FontProperties(fname=os.path.join(os.path.dirname(__file__), "SimHei.ttf"))
     ax.set_title(
         f"{dist_type} 在样本容量 n={n} 时的均值收敛演示",
-        fontsize=16, fontweight='bold', family=font_prop.get_name()
+        fontsize=16, fontweight='bold'
     )
-    ax.set_xlabel("样本均值数值", fontsize=12, family=font_prop.get_name())
-    ax.set_ylabel("概率密度", fontsize=12, family=font_prop.get_name())
+    ax.set_xlabel("样本均值数值", fontsize=12)
+    ax.set_ylabel("概率密度", fontsize=12)
     
-    # 使用 FontProperties 来设置图例的字体
-    ax.legend(fontsize=11, prop=font_prop)
+    ax.legend(fontsize=11)
     ax.grid(alpha=0.3)
 
     # 显示图表
