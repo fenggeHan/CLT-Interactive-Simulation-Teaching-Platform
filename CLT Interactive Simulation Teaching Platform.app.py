@@ -152,22 +152,22 @@ if len(sample_means) > 0:
         alpha=0.7, 
         color='#2E86AB', 
         edgecolor='white',
-        label='样本均值经验分布'
+        label='Empirical Distribution of Sample Means'  # 中文改为英文
     )
 
     # 拟合正态曲线
     mu_fit, std_fit = norm.fit(sample_means)
     x = np.linspace(min(sample_means), max(sample_means), 200)
     p = norm.pdf(x, mu_fit, std_fit)
-    ax.plot(x, p, 'r--', linewidth=2.5, label='拟合正态曲线')
+    ax.plot(x, p, 'r--', linewidth=2.5, label='Fitted Normal Curve')  # 中文改为英文
 
     # 设置图例字体属性
     ax.set_title(
-        f"{dist_type} 在样本容量 n={n} 时的均值收敛演示",
+        f"{dist_type} - Mean Convergence Demonstration with Sample Size n={n}",  # 中文改为英文
         fontsize=16, fontweight='bold'
     )
-    ax.set_xlabel("样本均值数值", fontsize=12)
-    ax.set_ylabel("概率密度", fontsize=12)
+    ax.set_xlabel("Sample Mean Value", fontsize=12)  # 中文改为英文
+    ax.set_ylabel("Probability Density", fontsize=12)  # 中文改为英文
     
     ax.legend(fontsize=11)
     ax.grid(alpha=0.3)
@@ -202,7 +202,7 @@ else:
 st.markdown("---")
 st.markdown("""
 ### 📝 使用说明
-1. 左侧可选择不同的母体分布类型，并调节对应参数；
-2. 调整样本容量 n 和模拟次数 N，观察均值分布的收敛效果；
-3. 偏度越接近0，说明分布越对称（越接近正态分布）。
+1.  左侧可选择不同的母体分布类型，并调节对应参数；
+2.  调整样本容量 n 和模拟次数 N，观察均值分布的收敛效果；
+3.  偏度越接近0，说明分布越对称（越接近正态分布）。
 """)
