@@ -291,7 +291,7 @@ stats_placeholder = st.empty()
 if animate_btn:
     st.session_state.anim_running = True
     # 降低动画步长，减少资源占用（步长10，更快更流畅）
-    for anim_n in range(1, 501, 30):
+    for anim_n in range(1, 501, 10):
         # 检查是否停止
         if not st.session_state.anim_running:
             break
@@ -363,7 +363,7 @@ if animate_btn:
                 st.metric("正态性判断", normality)
         
         # 缩短延时，更流畅
-        time.sleep(1)
+        time.sleep(0.5)
     
     # 动画结束后重置状态
     st.session_state.anim_running = False
@@ -377,4 +377,5 @@ st.markdown("""
 3.  偏度越接近0，峰度越接近3，说明分布越对称（越接近正态分布）；
 4.  点击「开始动画演示」按钮，可自动观看 n 从1到500的渐进收敛过程，支持中途停止。
 """)
+
 
