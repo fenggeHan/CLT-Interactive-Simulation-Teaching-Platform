@@ -9,6 +9,60 @@ import os
 import matplotlib.font_manager as fm
 import requests
 
+# ===================== 新增：访问量统计功能（核心代码） =====================
+def count_website_visits():
+    """
+    统计网页访问量，本地文本文件存储，避免重复计数（单会话仅计数1次）
+    """
+    # 兼容本地和Streamlit Cloud路径，存储访问量文件
+    if 'STREAMLIT_SERVER_ROOT_PATH' in os.environ:
+        count_file = "visit_count.txt"  # 云环境直接根目录
+    else:
+        current_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
+        count_file = os.path.join(current_dir, "visit_count.txt")  # 本地环境绝对路径
+
+    # 初始化：若文件不存在，创建并写入0
+    if not os.path.exists(count_file):
+        try:
+            with open(count_file, "w", encoding="utf-8") as f:
+                f.write("0")
+        except Exception as e:
+            st.warning(f"访问量统计文件初始化失败：{str(e)}")
+            return "无法统计"
+
+    # 用session_state标记是否已计数，避免Streamlit重运行重复累加
+    if not hasattr(st.session_state, 'visit_counted'):
+        st.session_state.visit_counted = False
+
+    # 仅当未计数时，更新访问量
+    if not st.session_state.visit_counted:
+        try:
+            # 读取当前访问量
+            with open(count_file, "r", encoding="utf-8") as f:
+                current_count = int(f.read().strip())
+            # 累加1
+            new_count = current_count + 1
+            # 写回文件
+            with open(count_file, "w", encoding="utf-8") as f:
+                f.write(str(new_count))
+            # 标记已计数，避免重复
+            st.session_state.visit_counted = True
+            return str(new_count)
+        except Exception as e:
+            st.warning(f"访问量更新失败：{str(e)}")
+            return "无法统计"
+    else:
+        # 已计数时，直接读取当前访问量
+        try:
+            with open(count_file, "r", encoding="utf-8") as f:
+                current_count = f.read().strip()
+            return current_count
+        except Exception as e:
+            return "无法统计"
+
+# 执行访问量统计，获取当前累计访问量
+total_visits = count_website_visits()
+
 # ===================== 优化：修复路径问题 + 强化中文字体配置 =====================
 def setup_chinese_font():
     """统一配置中文字体，优先加载本地字体，无则使用系统字体"""
@@ -72,6 +126,9 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# 新增：在页面顶部展示访问量（也可移至侧边栏/底部）
+st.markdown(f'<p style="font-size:14px; color:#666;">📈 累计访问量：{total_visits}</p>', unsafe_allow_html=True)
+
 st.markdown("""
 该系统展示了**独立同分布随机变量序列**的均值，在样本容量较大时，其分布趋于**正态分布**的过程。
 支持多种母体分布类型，可动态调节参数观察收敛效果。
@@ -79,6 +136,8 @@ st.markdown("""
 
 # ===================== 侧边栏参数配置 =====================
 st.sidebar.header("🔧 配置模拟参数")
+# 可选：也可在侧边栏展示访问量
+# st.sidebar.markdown(f"📈 累计访问量：{total_visits}")
 
 dist_list = [
     "0-1 分布 (Bernoulli)",
@@ -377,5 +436,3 @@ st.markdown("""
 3.  偏度越接近0，峰度越接近3，说明分布越对称（越接近正态分布）；
 4.  点击「开始动画演示」按钮，可自动观看 n 从1到500的渐进收敛过程，支持中途停止。
 """)
-
-
