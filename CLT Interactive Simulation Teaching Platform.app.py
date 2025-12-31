@@ -127,7 +127,7 @@ st.markdown(
 )
 
 # 新增：在页面顶部展示访问量（也可移至侧边栏/底部）
-#st.markdown(f'<p style="font-size:14px; color:#666;">📈 累计访问量：{total_visits}</p>', unsafe_allow_html=True)
+# st.markdown(f'<p style="font-size:14px; color:#666;">📈 累计访问量：{total_visits}</p>', unsafe_allow_html=True)
 
 st.markdown("""
 该系统展示了**独立同分布随机变量序列**的均值，在样本容量较大时，其分布趋于**正态分布**的过程。
@@ -436,5 +436,6 @@ st.markdown("""
 3.  偏度越接近0，峰度越接近3，说明分布越对称（越接近正态分布）；
 4.  点击「开始动画演示」按钮，可自动观看 n 从1到500的渐进收敛过程，支持中途停止。
 """)
+
 
 
