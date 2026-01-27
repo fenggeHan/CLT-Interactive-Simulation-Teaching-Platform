@@ -9,58 +9,65 @@ import os
 import matplotlib.font_manager as fm
 import requests
 
-# ===================== 新增：访问量统计功能（核心代码） =====================
+# ===================== 修改：持久化访问量统计功能（核心代码）=====================
 def count_website_visits():
     """
-    统计网页访问量，本地文本文件存储，避免重复计数（单会话仅计数1次）
+    统计网页累计访问量（从建立之初），云环境用Secrets持久化，本地用文件存储
+    单会话仅计数1次，避免重复累加
     """
-    # 兼容本地和Streamlit Cloud路径，存储访问量文件
-    if 'STREAMLIT_SERVER_ROOT_PATH' in os.environ:
-        count_file = "visit_count.txt"  # 云环境直接根目录
-    else:
-        current_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
-        count_file = os.path.join(current_dir, "visit_count.txt")  # 本地环境绝对路径
-
-    # 初始化：若文件不存在，创建并写入0
-    if not os.path.exists(count_file):
-        try:
-            with open(count_file, "w", encoding="utf-8") as f:
-                f.write("0")
-        except Exception as e:
-            st.warning(f"访问量统计文件初始化失败：{str(e)}")
-            return "无法统计"
-
-    # 用session_state标记是否已计数，避免Streamlit重运行重复累加
-    if not hasattr(st.session_state, 'visit_counted'):
+    # 1. 初始化单会话计数标记，避免重复累加（原有逻辑保留）
+    if 'visit_counted' not in st.session_state:
         st.session_state.visit_counted = False
 
-    # 仅当未计数时，更新访问量
-    if not st.session_state.visit_counted:
-        try:
-            # 读取当前访问量
+    # 已计数则直接返回当前累计值
+    if st.session_state.visit_counted:
+        # 云环境：从Secrets获取
+        if 'STREAMLIT_SERVER_ROOT_PATH' in os.environ:
+            current_count = st.secrets.get("visit_total", 0)
+        # 本地环境：从文件读取
+        else:
+            current_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
+            count_file = os.path.join(current_dir, "visit_count.txt")
+            try:
+                with open(count_file, "r", encoding="utf-8") as f:
+                    current_count = int(f.read().strip())
+            except:
+                current_count = 0
+        return str(current_count)
+
+    # 2. 未计数则执行累加逻辑，区分云/本地环境持久化
+    try:
+        if 'STREAMLIT_SERVER_ROOT_PATH' in os.environ:
+            # 云环境：Secrets持久化（核心修改）
+            # 获取当前累计值，无则初始化为0
+            current_count = st.secrets.get("visit_total", 0)
+            new_count = current_count + 1
+            # 更新Secrets（持久化存储，重启不丢失）
+            st.secrets["visit_total"] = new_count
+        else:
+            # 本地环境：原有文件存储逻辑，保持不变
+            current_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in locals() else os.getcwd()
+            count_file = os.path.join(current_dir, "visit_count.txt")
+            # 初始化文件（无则创建，写入0）
+            if not os.path.exists(count_file):
+                with open(count_file, "w", encoding="utf-8") as f:
+                    f.write("0")
+            # 读取并累加
             with open(count_file, "r", encoding="utf-8") as f:
                 current_count = int(f.read().strip())
-            # 累加1
             new_count = current_count + 1
             # 写回文件
             with open(count_file, "w", encoding="utf-8") as f:
                 f.write(str(new_count))
-            # 标记已计数，避免重复
-            st.session_state.visit_counted = True
-            return str(new_count)
-        except Exception as e:
-            st.warning(f"访问量更新失败：{str(e)}")
-            return "无法统计"
-    else:
-        # 已计数时，直接读取当前访问量
-        try:
-            with open(count_file, "r", encoding="utf-8") as f:
-                current_count = f.read().strip()
-            return current_count
-        except Exception as e:
-            return "无法统计"
+        
+        # 标记当前会话已计数，避免重复
+        st.session_state.visit_counted = True
+        return str(new_count)
+    except Exception as e:
+        st.warning(f"访问量统计更新失败：{str(e)}")
+        return "无法统计"
 
-# 执行访问量统计，获取当前累计访问量
+# 执行访问量统计，获取当前累计访问量（从建立之初）
 total_visits = count_website_visits()
 
 # ===================== 优化：修复路径问题 + 强化中文字体配置 =====================
@@ -137,7 +144,7 @@ st.markdown("""
 # ===================== 侧边栏参数配置 =====================
 st.sidebar.header("🔧 配置模拟参数")
 # 可选：也可在侧边栏展示访问量
-st.sidebar.markdown(f"📈 累计访问量：{total_visits}")
+st.sidebar.markdown(f"📈 累计访问量（从建立之初）：{total_visits}")
 
 dist_list = [
     "0-1 分布 (Bernoulli)",
@@ -436,6 +443,3 @@ st.markdown("""
 3.  偏度越接近0，峰度越接近3，说明分布越对称（越接近正态分布）；
 4.  点击「开始动画演示」按钮，可自动观看 n 从1到500的渐进收敛过程，支持中途停止。
 """)
-
-
-
