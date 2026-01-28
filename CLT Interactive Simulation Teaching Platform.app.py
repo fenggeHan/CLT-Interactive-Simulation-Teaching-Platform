@@ -144,7 +144,7 @@ st.markdown("""
 # ===================== 侧边栏参数配置 =====================
 st.sidebar.header("🔧 配置模拟参数")
 # 可选：也可在侧边栏展示访问量
-st.sidebar.markdown(f"📈 累计访问量：{total_visits}")
+st.sidebar.markdown(f"📈 今日累计访问量：{total_visits}")
 
 dist_list = [
     "0-1 分布 (Bernoulli)",
@@ -443,4 +443,5 @@ st.markdown("""
 3.  偏度越接近0，峰度越接近3，说明分布越对称（越接近正态分布）；
 4.  点击「开始动画演示」按钮，可自动观看 n 从1到500的渐进收敛过程，支持中途停止。
 """)
+
 
